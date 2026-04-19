@@ -146,6 +146,10 @@ function App() {
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const inputUserRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+  inputUserRef.current?.focus();
+}, []);
   const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('inicio');
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
@@ -196,7 +200,14 @@ useEffect(() => {
       creadoPor: item.creado_por ?? '',
       createdAt: item.created_at ?? new Date().toISOString(),
       updatedAt: item.updated_at ?? new Date().toISOString(),
-      checklist: emptyChecklist(),
+      checklist: {
+  invitacionEnviada: item.invitacion_enviada ?? false,
+  pendonListo: item.pendon_listo ?? false,
+  baseParaPadres: item.base_para_padres ?? false,
+  pintacarita: item.pintacarita ?? false,
+  tarjetasArcadeEntregar: item.tarjetas_arcade ?? false,
+  cantidadTarjetasArcade: 0,
+},
     }));
 
     setEvents(eventosMapeados);
@@ -576,9 +587,45 @@ setFormState(buildInitialForm(formState.fecha, formState.horario));
   }
 };
 
-  const updateChecklist = (eventId: string, updater: (checklist: Checklist) => Checklist) => {
-    setEvents((prev) => prev.map((event) => (event.id === eventId ? { ...event, checklist: updater(event.checklist), updatedAt: new Date().toISOString() } : event)));
-  };
+  const updateChecklist = async (
+  eventId: string,
+  updater: (checklist: Checklist) => Checklist
+) => {
+  const eventoActual = events.find((event) => event.id === eventId);
+  if (!eventoActual) return;
+
+  const nuevoChecklist = updater(eventoActual.checklist);
+
+  const { error } = await supabase
+    .from('eventos')
+    .update({
+      invitacion_enviada: nuevoChecklist.invitacionEnviada,
+      pendon_listo: nuevoChecklist.pendonListo,
+      base_para_padres: nuevoChecklist.baseParaPadres,
+      pintacarita: nuevoChecklist.pintacarita,
+      tarjetas_arcade: nuevoChecklist.tarjetasArcadeEntregar,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', eventId);
+
+  if (error) {
+    alert('Error al guardar checklist en Supabase');
+    console.error(error);
+    return;
+  }
+
+  setEvents((prev) =>
+    prev.map((event) =>
+      event.id === eventId
+        ? {
+            ...event,
+            checklist: nuevoChecklist,
+            updatedAt: new Date().toISOString(),
+          }
+        : event
+    )
+  );
+};
 
   const saveUser = async () => {
     if (!isAdmin) return;
