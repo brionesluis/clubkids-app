@@ -591,10 +591,15 @@ setFormState(buildInitialForm(formState.fecha, formState.horario));
   eventId: string,
   updater: (checklist: Checklist) => Checklist
 ) => {
+  console.log('UPDATE CHECKLIST INICIÓ', eventId);
+
   const eventoActual = events.find((event) => event.id === eventId);
+  console.log('EVENTO ENCONTRADO:', eventoActual);
+
   if (!eventoActual) return;
 
   const nuevoChecklist = updater(eventoActual.checklist);
+  console.log('NUEVO CHECKLIST:', nuevoChecklist);
 
   const { error } = await supabase
     .from('eventos')
@@ -607,6 +612,8 @@ setFormState(buildInitialForm(formState.fecha, formState.horario));
       updated_at: new Date().toISOString(),
     })
     .eq('id', eventId);
+
+  console.log('ERROR SUPABASE CHECKLIST:', error);
 
   if (error) {
     alert('Error al guardar checklist en Supabase');
@@ -976,7 +983,9 @@ alert('Valores guardados en Supabase ✅');
                 canEdit={canEditEvents}
                 onEdit={() => openEditForm(selectedEvent)}
                 onPrint={() => window.print()}
-                onChecklistChange={updateChecklist}
+                onChecklistChange={(eventId, updater) => {
+  updateChecklist(eventId, updater);
+}}
               />
             )}
           </section>
