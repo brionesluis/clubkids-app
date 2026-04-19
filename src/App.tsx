@@ -143,8 +143,9 @@ function App() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [valueHistory, setValueHistory] = useLocalStorage<MenuPriceVersion[]>(STORAGE_KEYS.values, defaultValueHistory);
   const [activeUser, setActiveUser] = useState<User | null>(null);
-  const [loginUser, setLoginUser] = useState('admin');
-  const [loginPass, setLoginPass] = useState('1234');
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const inputUserRef = useRef<HTMLInputElement>(null);
   const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('inicio');
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
@@ -801,7 +802,10 @@ alert('Valores guardados en Supabase ✅');
           <div className="login-grid">
             <label>
               Usuario
-              <input value={loginUser} onChange={(e) => setLoginUser(e.target.value)} placeholder="admin" />
+              <input ref={inputUserRef}
+  value={loginUser}
+  onChange={(e) => setLoginUser(e.target.value)}
+  placeholder="Usuario" />
             </label>
             <label>
               Clave
