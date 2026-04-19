@@ -171,7 +171,34 @@ useEffect(() => {
       return;
     }
 
-    setEvents(data || []);
+    const eventosMapeados: EventItem[] = (data || []).map((item) => ({
+      id: item.id,
+      nombreEvento: item.nombre_evento,
+      nombreCliente: item.nombre_cliente,
+      telefono: item.telefono,
+      fecha: item.fecha,
+      horario: item.horario,
+      menu: item.menu,
+      valorPorInvitado: Number(item.valor_por_invitado ?? 0),
+      tematica: item.tematica ?? '',
+      sala: item.sala,
+      edadCumple: Number(item.edad_cumple ?? 0),
+      invitados: Number(item.invitados ?? 0),
+      subtotal: Number(item.subtotal ?? 0),
+      discountType: (item.discount_type ?? 'none') as DiscountType,
+      discountPct: Number(item.discount_pct ?? 0),
+      totalFinal: Number(item.total_final ?? 0),
+      abono: Number(item.abono ?? 0),
+      medioPagoAbono: (item.medio_pago_abono ?? 'Transferencia') as PaymentMethod,
+      observaciones: item.observaciones ?? '',
+      estado: (item.estado ?? 'Pendiente') as EventStatus,
+      creadoPor: item.creado_por ?? '',
+      createdAt: item.created_at ?? new Date().toISOString(),
+      updatedAt: item.updated_at ?? new Date().toISOString(),
+      checklist: emptyChecklist(),
+    }));
+
+    setEvents(eventosMapeados);
   }
 
   cargarEventosDesdeSupabase();
