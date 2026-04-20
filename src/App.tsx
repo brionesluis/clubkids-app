@@ -206,7 +206,7 @@ useEffect(() => {
   baseParaPadres: item.base_para_padres ?? false,
   pintacarita: item.pintacarita ?? false,
   tarjetasArcadeEntregar: item.tarjetas_arcade ?? false,
-  cantidadTarjetasArcade: 0,
+  cantidadTarjetasArcade: Number(item.cantidad_tarjetas_arcade ?? 0),
 },
     }));
 
@@ -602,16 +602,17 @@ setFormState(buildInitialForm(formState.fecha, formState.horario));
   console.log('NUEVO CHECKLIST:', nuevoChecklist);
 
   const { error } = await supabase
-    .from('eventos')
-    .update({
-      invitacion_enviada: nuevoChecklist.invitacionEnviada,
-      pendon_listo: nuevoChecklist.pendonListo,
-      base_para_padres: nuevoChecklist.baseParaPadres,
-      pintacarita: nuevoChecklist.pintacarita,
-      tarjetas_arcade: nuevoChecklist.tarjetasArcadeEntregar,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', eventId);
+  .from('eventos')
+  .update({
+    invitacion_enviada: nuevoChecklist.invitacionEnviada,
+    pendon_listo: nuevoChecklist.pendonListo,
+    base_para_padres: nuevoChecklist.baseParaPadres,
+    pintacarita: nuevoChecklist.pintacarita,
+    tarjetas_arcade: nuevoChecklist.tarjetasArcadeEntregar,
+    cantidad_tarjetas_arcade: Number(nuevoChecklist.cantidadTarjetasArcade ?? 0),
+    updated_at: new Date().toISOString(),
+  })
+  .eq('id', eventId);
 
   console.log('ERROR SUPABASE CHECKLIST:', error);
 
