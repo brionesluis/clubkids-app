@@ -1449,7 +1449,7 @@ function BirthdaySheet({ event, canEdit, onEdit, onPrint, onChecklistChange }: {
           <label><input type="checkbox" checked={event.checklist.pintacarita} onChange={() => onChecklistChange(event.id, (c) => ({ ...c, pintacarita: !c.pintacarita }))} /> Pintacarita</label>
           <label className="arcade-check">
             <span><input type="checkbox" checked={event.checklist.tarjetasArcadeEntregar} onChange={() => onChecklistChange(event.id, (c) => ({ ...c, tarjetasArcadeEntregar: !c.tarjetasArcadeEntregar }))} /> Tarjetas Arcade a entregar</span>
-            <input type="number" min={0} value={event.checklist.cantidadTarjetasArcade} onChange={(e) => onChecklistChange(event.id, (c) => ({ ...c, cantidadTarjetasArcade: Number(e.target.value) }))} />
+            <input type="number" min={0} value={event.checklist.cantidadTarjetasArcade} onChange={(e) => onChecklistChange(event.id, (c) => ({ ...c, cantidadTarjetasArcade: Number(e.target.value || 0), }))} />
           </label>
         </div>
       </section>
