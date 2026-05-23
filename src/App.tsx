@@ -1844,6 +1844,7 @@ function toExportRow(event: EventItem) {
     Abono: event.abono,
     'Por cobrar': Math.max(0, event.totalFinal - event.abono),
     Estado: event.estado,
+    'Creado por': event.creadoPor || 'Sin registro',
     Observaciones: event.observaciones,
   };
 }
