@@ -102,7 +102,7 @@ const COLORS = {
   soft: '#F6FAFC',
 };
 
-const salas = ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4'];
+const salas = ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5'];
 const horarios = ['12:00 - 14:00', '15:00 - 17:00', '18:00 - 20:00'];
 const menuKeys: MenuKey[] = ['MenuKids 1', 'MenuKids 2', 'MenuKids 3'];
 const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -297,7 +297,7 @@ const eventsSorted = useMemo(() => {
 
   const todaysEvents = eventsSorted.filter((event) => event.fecha === today);
   const tomorrowsEvents = eventsSorted.filter((event) => event.fecha === tomorrow);
-  const upcomingEvents = eventsSorted.filter((event) => event.fecha >= today).slice(0, 4);
+  const upcomingEvents = eventsSorted.filter((event) => event.fecha >= today).slice(0, 5);
 
   const selectedDateEvents = useMemo(
     () => eventsSorted.filter((event) => event.fecha === selectedDate),
@@ -1036,7 +1036,7 @@ alert('Valores guardados en Supabase ✅');
                 <div className="slot-list">
                   {horarios.map((slot) => {
                     const slotEvents = selectedDateEvents.filter((event) => event.horario === slot);
-                    const remaining = 4 - slotEvents.length;
+                    const remaining = Math.max(0, salas.length - slotEvents.length);
                     return (
                       <div className="slot-card" key={slot}>
                         <div className="slot-header">
@@ -1604,7 +1604,7 @@ if (!form.telefono.trim()) {
   const totals = calculateEventTotals(form, valueHistory);
   if (form.abono > totals.total) return 'El abono no puede superar el valor total del evento.';
   const sameSlotCount = events.filter((event) => event.fecha === form.fecha && event.horario === form.horario && event.id !== editingEventId).length;
-  if (sameSlotCount >= 4) return 'Ese horario ya completó sus 4 cupos.';
+  if (sameSlotCount >= 5) return 'Ese horario ya completó sus 5 cupos.';
   const sameRoom = events.find((event) => event.fecha === form.fecha && event.horario === form.horario && event.sala === form.sala && event.id !== editingEventId);
   if (sameRoom) return 'Ya existe un cumpleaños en la misma sala y horario.';
   if (form.discountType === 'especial' && activeUser.rol !== 'Administrador principal') return 'Solo el administrador principal puede aplicar descuento especial.';
