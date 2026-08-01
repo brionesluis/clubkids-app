@@ -888,6 +888,95 @@ alert('Valores guardados en Supabase ✅');
   }
 };
 
+  const addSala = () => {
+    const nombre = window.prompt('Escribe el nombre de la nueva sala:');
+    if (nombre === null) return;
+
+    const nombreLimpio = nombre.trim();
+    if (!nombreLimpio) {
+      window.alert('Debes escribir un nombre para la sala.');
+      return;
+    }
+
+    const yaExiste = settingsDraft.salas.some(
+      (sala) => sala.trim().toLowerCase() === nombreLimpio.toLowerCase(),
+    );
+
+    if (yaExiste) {
+      window.alert('Ya existe una sala con ese nombre.');
+      return;
+    }
+
+    setSettingsDraft((prev) => ({
+      ...prev,
+      salas: [...prev.salas, nombreLimpio],
+    }));
+  };
+
+  const addHorario = () => {
+    const horario = window.prompt(
+      'Escribe el nuevo horario. Ejemplo: 21:00 - 23:00',
+    );
+    if (horario === null) return;
+
+    const horarioLimpio = horario.trim();
+    if (!horarioLimpio) {
+      window.alert('Debes escribir un horario.');
+      return;
+    }
+
+    const yaExiste = settingsDraft.horarios.some(
+      (item) => item.trim().toLowerCase() === horarioLimpio.toLowerCase(),
+    );
+
+    if (yaExiste) {
+      window.alert('Ese horario ya existe.');
+      return;
+    }
+
+    setSettingsDraft((prev) => ({
+      ...prev,
+      horarios: [...prev.horarios, horarioLimpio],
+    }));
+  };
+
+  const addTematica = () => {
+    const nombre = window.prompt('Escribe el nombre de la nueva temática:');
+    if (nombre === null) return;
+
+    const nombreLimpio = nombre.trim();
+    if (!nombreLimpio) {
+      window.alert('Debes escribir un nombre para la temática.');
+      return;
+    }
+
+    const yaExiste = settingsDraft.tematicas.some(
+      (tema) => tema.nombre.trim().toLowerCase() === nombreLimpio.toLowerCase(),
+    );
+
+    if (yaExiste) {
+      window.alert('Ya existe una temática con ese nombre.');
+      return;
+    }
+
+    const cantidadTexto = window.prompt(
+      '¿Cuántas unidades tienes disponibles?',
+      '1',
+    );
+    if (cantidadTexto === null) return;
+
+    const cantidad = Number(cantidadTexto);
+    if (!Number.isInteger(cantidad) || cantidad < 1) {
+      window.alert('La cantidad debe ser un número entero mayor o igual a 1.');
+      return;
+    }
+
+    setSettingsDraft((prev) => ({
+      ...prev,
+      tematicas: [...prev.tematicas, { nombre: nombreLimpio, cantidad }],
+    }));
+  };
+
   const saveGeneralSettings = async () => {
     if (!settingsDraft.salas.length || !settingsDraft.horarios.length) {
       alert('Debe existir al menos una sala y un horario.');
@@ -1476,18 +1565,57 @@ alert('Valores guardados en Supabase ✅');
             </article>
 
             <article className="panel floating-card no-print">
-              <div className="panel-title-row"><h3>Salas</h3><button className="ghost-btn" onClick={() => setSettingsDraft((prev) => ({ ...prev, salas: [...prev.salas, `Sala ${prev.salas.length + 1}`] }))}>+ Agregar sala</button></div>
-              <div className="settings-list">{settingsDraft.salas.map((sala, index) => <div className="settings-row" key={`${sala}-${index}`}><input value={sala} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, salas: prev.salas.map((item, i) => i === index ? e.target.value : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, salas: prev.salas.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
+              <div className="panel-title-row"><h3>Salas</h3><button
+    type="button"
+    className="ghost-btn"
+    onClick={() =>
+      setSettingsDraft((prev) => ({
+        ...prev,
+        salas: [...prev.salas, ""],
+      }))
+    }
+  >
+    + Agregar sala
+  </button></div>
+              <div className="settings-list">{settingsDraft.salas.map((sala, index) => <div className="settings-row" key={`sala-${index}`}><input value={sala} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, salas: prev.salas.map((item, i) => i === index ? e.target.value : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, salas: prev.salas.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
             </article>
 
             <article className="panel floating-card no-print">
-              <div className="panel-title-row"><h3>Horarios</h3><button className="ghost-btn" onClick={() => setSettingsDraft((prev) => ({ ...prev, horarios: [...prev.horarios, 'Nuevo horario'] }))}>+ Agregar horario</button></div>
-              <div className="settings-list">{settingsDraft.horarios.map((horario, index) => <div className="settings-row" key={`${horario}-${index}`}><input value={horario} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, horarios: prev.horarios.map((item, i) => i === index ? e.target.value : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, horarios: prev.horarios.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
+              <div className="panel-title-row"><h3>Horarios</h3><button
+    type="button"
+    className="ghost-btn"
+    onClick={() =>
+      setSettingsDraft((prev) => ({
+        ...prev,
+        horarios: [...prev.horarios, ""],
+      }))
+    }
+  >
+    + Agregar horario
+  </button></div>
+              <div className="settings-list">{settingsDraft.horarios.map((horario, index) => <div className="settings-row" key={`horario-${index}`}><input value={horario} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, horarios: prev.horarios.map((item, i) => i === index ? e.target.value : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, horarios: prev.horarios.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
             </article>
 
             <article className="panel floating-card no-print">
-              <div className="panel-title-row"><h3>Temáticas e inventario</h3><button className="ghost-btn" onClick={() => setSettingsDraft((prev) => ({ ...prev, tematicas: [...prev.tematicas, { nombre: 'Nueva temática', cantidad: 1 }] }))}>+ Agregar temática</button></div>
-              <div className="settings-list">{settingsDraft.tematicas.map((tema, index) => <div className="settings-row theme-row" key={`${tema.nombre}-${index}`}><input value={tema.nombre} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.map((item, i) => i === index ? { ...item, nombre: e.target.value } : item) }))} /><input type="number" min="0" value={tema.cantidad} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.map((item, i) => i === index ? { ...item, cantidad: Number(e.target.value) } : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
+              <div className="panel-title-row"><h3>Temáticas e inventario</h3><button
+  type="button"
+  className="ghost-btn"
+  onClick={() =>
+    setSettingsDraft((prev) => ({
+      ...prev,
+      tematicas: [
+        ...prev.tematicas,
+        {
+          nombre: '',
+          cantidad: 1,
+        },
+      ],
+    }))
+  }
+>
+  + Agregar temática
+</button></div>
+              <div className="settings-list">{settingsDraft.tematicas.map((tema, index) => <div className="settings-row theme-row" key={`tematica-${index}`}><input value={tema.nombre} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.map((item, i) => i === index ? { ...item, nombre: e.target.value } : item) }))} /><input type="number" min="0" value={tema.cantidad} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.map((item, i) => i === index ? { ...item, cantidad: Number(e.target.value) } : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
             </article>
 
             <article className="panel floating-card no-print settings-save-panel">
