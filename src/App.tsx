@@ -2,8 +2,8 @@ import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from '
 import * as XLSX from 'xlsx';
 import { supabase } from './supabaseClient';
 
-type Rol = 'Administrador principal' | 'Coordinadora' | 'Monitora';
-type TabId = 'inicio' | 'agenda' | 'eventos' | 'reportes' | 'usuarios' | 'valores';
+type Rol = 'Administrador principal' | 'Coordinadora' | 'Monitora' | 'Supervisor';
+type TabId = 'inicio' | 'agenda' | 'eventos' | 'reportes' | 'usuarios' | 'configuracion';
 type MenuKey = 'MenuKids 1' | 'MenuKids 2' | 'MenuKids 3';
 type PaymentMethod = 'Efectivo' | 'Tarjeta' | 'Transferencia';
 type EventStatus = 'Pendiente' | 'Confirmado' | 'Realizado' | 'Cancelado';
@@ -68,6 +68,20 @@ type Filters = {
   search: string;
 };
 
+
+type ThemeItem = { nombre: string; cantidad: number };
+type AppSettings = {
+  salas: string[];
+  horarios: string[];
+  tematicas: ThemeItem[];
+  colors: {
+    primary: string;
+    secondary: string;
+    background: string;
+    text: string;
+  };
+};
+
 type FormState = {
   nombreEvento: string;
   nombreCliente: string;
@@ -90,6 +104,7 @@ const STORAGE_KEYS = {
   users: 'clubkids_v3_users',
   events: 'clubkids_v3_events',
   values: 'clubkids_v3_values',
+  settings: 'clubkids_v2_settings',
 } as const;
 
 const COLORS = {
@@ -102,11 +117,21 @@ const COLORS = {
   soft: '#F6FAFC',
 };
 
-const salas = ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5'];
-const horarios = ['12:00 - 14:00', '15:00 - 17:00', '18:00 - 20:00'];
+const defaultSettings: AppSettings = {
+  salas: ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5'],
+  horarios: ['12:00 - 14:00', '15:00 - 17:00', '18:00 - 20:00'],
+  tematicas: [
+    { nombre: 'Princesas', cantidad: 1 },
+    { nombre: 'Dinosaurios', cantidad: 1 },
+    { nombre: 'Fútbol', cantidad: 1 },
+    { nombre: 'Neón', cantidad: 1 },
+    { nombre: 'Sin temática', cantidad: 99 },
+  ],
+  colors: { primary: '#1FA5B5', secondary: '#9B5C8F', background: '#F6FAFC', text: '#173042' },
+};
 const menuKeys: MenuKey[] = ['MenuKids 1', 'MenuKids 2', 'MenuKids 3'];
 const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-const tabOrder: TabId[] = ['inicio', 'agenda', 'eventos', 'reportes', 'usuarios', 'valores'];
+const tabOrder: TabId[] = ['inicio', 'agenda', 'eventos', 'reportes', 'usuarios', 'configuracion'];
 
 const defaultUsers: User[] = [
   { id: uid(), nombre: 'Administrador Principal', usuario: 'admin', clave: '1234', rol: 'Administrador principal', activo: true },
@@ -142,6 +167,9 @@ function App() {
   const [users, setUsers] = useState<User[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [valueHistory, setValueHistory] = useLocalStorage<MenuPriceVersion[]>(STORAGE_KEYS.values, defaultValueHistory);
+  const [settings, setSettings] = useLocalStorage<AppSettings>(STORAGE_KEYS.settings, defaultSettings);
+  const [settingsDraft, setSettingsDraft] = useState<AppSettings>(defaultSettings);
+  const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [activeUser, setActiveUser] = useState<User | null>(null);
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
@@ -163,6 +191,26 @@ function App() {
   const [formState, setFormState] = useState<FormState>(buildInitialForm(isoDate(new Date()), '12:00 - 14:00'));
   const [userForm, setUserForm] = useState({ nombre: '', usuario: '', clave: '', rol: 'Monitora' as Rol });
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+
+  useEffect(() => { setSettingsDraft(settings); }, [settings]);
+  useEffect(() => {
+    document.documentElement.style.setProperty('--brand-primary', settings.colors.primary);
+    document.documentElement.style.setProperty('--brand-secondary', settings.colors.secondary);
+    document.documentElement.style.setProperty('--app-bg', settings.colors.background);
+    document.documentElement.style.setProperty('--app-text', settings.colors.text);
+  }, [settings]);
+
+useEffect(() => {
+  async function cargarConfiguracionDesdeSupabase() {
+    const { data, error } = await supabase.from('configuracion_app').select('datos').eq('id', 1).maybeSingle();
+    if (error) {
+      console.warn('No se pudo cargar configuración desde Supabase; se usarán valores locales.', error);
+      return;
+    }
+    if (data?.datos) setSettings(data.datos as AppSettings);
+  }
+  cargarConfiguracionDesdeSupabase();
+}, []);
 
 useEffect(() => {
   async function cargarEventosDesdeSupabase() {
@@ -284,6 +332,10 @@ const canEditEvents =
   activeUser?.rol === 'Administrador principal' ||
   activeUser?.rol === 'Coordinadora';
 
+const salas = settings.salas;
+const horarios = settings.horarios;
+const tematicas = settings.tematicas;
+
 const today = isoDate(new Date());
 const tomorrow = isoDate(offsetDate(1));
 
@@ -335,7 +387,17 @@ const eventsSorted = useMemo(() => {
     });
   }, [eventsSorted, filters]);
 
-  const monthlyMetrics = useMemo(() => buildMetrics(eventsSorted), [eventsSorted]);
+  const eventsForFormDate = events.filter((event) => event.fecha === formState.fecha && event.id !== editingEventId);
+  const availableHorarios = horarios.filter((slot) => eventsForFormDate.filter((event) => event.horario === slot).length < salas.length);
+  const occupiedRooms = eventsForFormDate.filter((event) => event.horario === formState.horario).map((event) => event.sala);
+  const availableSalas = salas.filter((sala) => !occupiedRooms.includes(sala) || (editingEventId && formState.sala === sala));
+  const eventsSameSlot = eventsForFormDate.filter((event) => event.horario === formState.horario);
+  const availableTematicas = tematicas.filter((theme) => {
+    const used = eventsSameSlot.filter((event) => event.tematica === theme.nombre).length;
+    return used < Math.max(1, Number(theme.cantidad || 0)) || (editingEventId && formState.tematica === theme.nombre);
+  }).map((theme) => theme.nombre);
+
+  const monthlyMetrics = useMemo(() => buildMetrics(eventsSorted, horarios, salas.length), [eventsSorted, horarios, salas.length]);
 
   const calendarCells = useMemo(() => buildCalendar(currentMonth, eventsSorted), [currentMonth, eventsSorted]);
 
@@ -411,7 +473,7 @@ const handleLogin = async () => {
 
 const saveEvent = async () => {
   if (!activeUser) return;
-  const validation = validateForm(formState, events, editingEventId, valueHistory, activeUser);
+  const validation = validateForm(formState, events, editingEventId, valueHistory, activeUser, salas.length, tematicas);
   if (validation) {
     alert(validation);
     return;
@@ -826,6 +888,28 @@ alert('Valores guardados en Supabase ✅');
   }
 };
 
+  const saveGeneralSettings = async () => {
+    if (!settingsDraft.salas.length || !settingsDraft.horarios.length) {
+      alert('Debe existir al menos una sala y un horario.');
+      return;
+    }
+    const cleanSettings: AppSettings = {
+      ...settingsDraft,
+      salas: settingsDraft.salas.map((item) => item.trim()).filter(Boolean),
+      horarios: settingsDraft.horarios.map((item) => item.trim()).filter(Boolean),
+      tematicas: settingsDraft.tematicas
+        .map((item) => ({ nombre: item.nombre.trim(), cantidad: Math.max(0, Number(item.cantidad || 0)) }))
+        .filter((item) => item.nombre),
+    };
+    const { error } = await supabase.from('configuracion_app').upsert({ id: 1, datos: cleanSettings, updated_at: new Date().toISOString() });
+    if (error) {
+      alert(`No se pudo guardar la configuración en Supabase: ${error.message}`);
+      return;
+    }
+    setSettings(cleanSettings);
+    alert('Configuración guardada para todos los usuarios ✅');
+  };
+
   const exportExcel = (type: 'week' | 'month' | 'year' | 'all') => {
     const now = new Date();
     const data = eventsSorted.filter((event) => {
@@ -881,6 +965,7 @@ alert('Valores guardados en Supabase ✅');
       <header className="topbar floating-card no-print">
         <div>
           <span className="arial">Agenda de Cumpleaños</span>
+          <small className="app-version">Versión 2.0</small>
           <h2>CLUBKIDS</h2>
         </div>
         <div className="topbar-user">
@@ -896,9 +981,11 @@ alert('Valores guardados en Supabase ✅');
         {(
   activeUser.rol === 'Administrador principal'
     ? tabOrder
-    : (['inicio', 'agenda', 'eventos'] as TabId[])
+    : activeUser.rol === 'Supervisor'
+      ? (['inicio', 'eventos', 'reportes'] as TabId[])
+      : (['inicio', 'agenda', 'eventos'] as TabId[])
 ).map((tab) => {
-          const disabled = tab === 'valores' && !isAdmin;
+          const disabled = tab === 'configuracion' && !isAdmin;
           return (
             <button
               key={tab}
@@ -916,15 +1003,6 @@ alert('Valores guardados en Supabase ✅');
         {activeTab === 'inicio' && (
           <section className="page fade-in">
             <div className="dashboard-grid">
-              <article className="panel floating-card">
-                <div className="panel-title-row">
-                  <h3>Sesión actual</h3>
-                  <span className="role-chip">{activeUser.rol}</span>
-                </div>
-                <p><strong>Usuario:</strong> {activeUser.usuario}</p>
-                <p><strong>Nombre:</strong> {activeUser.nombre}</p>
-                <button className="ghost-btn" onClick={handleLogout}>Cambiar usuario</button>
-              </article>
 
               <article className="panel floating-card">
                 <h3>Buscador general</h3>
@@ -1110,11 +1188,11 @@ alert('Valores guardados en Supabase ✅');
   />
 </label>
                   <label>Fecha<input type="date" value={formState.fecha} onChange={(e) => updateForm(setFormState, 'fecha', e.target.value)} /></label>
-                  <label>Horario<select value={formState.horario} onChange={(e) => updateForm(setFormState, 'horario', e.target.value)}>{horarios.map((slot) => <option key={slot}>{slot}</option>)}</select></label>
+                  <label>Horario<select value={formState.horario} onChange={(e) => updateForm(setFormState, 'horario', e.target.value)}>{availableHorarios.map((slot) => <option key={slot}>{slot}</option>)}</select></label>
                   <label>Selección de menú<select value={formState.menu} onChange={(e) => updateForm(setFormState, 'menu', e.target.value as MenuKey)}>{menuKeys.map((menu) => <option key={menu}>{menu}</option>)}</select></label>
                   <label>Valor por invitado<input value={formatCurrency(getPriceForMenu(formState.menu, valueHistory, editingEventId ? events.find((item) => item.id === editingEventId)?.createdAt : undefined))} readOnly /></label>
-                  <label>Temática<input value={formState.tematica} onChange={(e) => updateForm(setFormState, 'tematica', e.target.value)} /></label>
-                  <label>Sala<select value={formState.sala} onChange={(e) => updateForm(setFormState, 'sala', e.target.value)}>{salas.map((sala) => <option key={sala}>{sala}</option>)}</select></label>
+                  <label>Temática<select value={formState.tematica} onChange={(e) => updateForm(setFormState, 'tematica', e.target.value)}><option value="">Seleccionar temática</option>{availableTematicas.map((tema) => <option key={tema} value={tema}>{tema}</option>)}</select></label>
+                  <label>Sala<select value={formState.sala} onChange={(e) => updateForm(setFormState, 'sala', e.target.value)}><option value="">Seleccionar sala</option>{availableSalas.map((sala) => <option key={sala}>{sala}</option>)}</select></label>
                   <label>Edad que cumple<input type="number" min={1} value={formState.edadCumple} onChange={(e) => updateForm(setFormState, 'edadCumple', Number(e.target.value))} /></label>
                   <label>N° de invitados<input type="number" min={1} value={formState.invitados} onChange={(e) => updateForm(setFormState, 'invitados', Number(e.target.value))} /></label>
                   <label>Abono<input type="number" min={0} value={formState.abono} onChange={(e) => updateForm(setFormState, 'abono', Number(e.target.value))} /></label>
@@ -1214,7 +1292,7 @@ alert('Valores guardados en Supabase ✅');
           </section>
         )}
 
-        {activeTab === 'reportes' && activeUser.rol === 'Administrador principal' && (
+        {activeTab === 'reportes' && (activeUser.rol === 'Administrador principal' || activeUser.rol === 'Supervisor') && (
           <section className="page fade-in">
             <div className="report-grid">
               <article className="panel floating-card">
@@ -1249,6 +1327,15 @@ alert('Valores guardados en Supabase ✅');
                 {monthlyMetrics.yearMonthDistribution.map((item) => <BarRow key={item.label} label={item.label} value={item.value} />)}
               </article>
             </div>
+
+            <article className="panel floating-card no-print monthly-report-launcher">
+              <div className="panel-title-row">
+                <div><h3>Informe mensual para reunión</h3><p className="muted">Resumen ejecutivo con ventas, ocupación, menús, alertas y acciones sugeridas.</p></div>
+                <button className="primary-btn" onClick={() => setShowMonthlyReport((prev) => !prev)}>{showMonthlyReport ? 'Cerrar informe' : 'Ver informe mensual'}</button>
+              </div>
+            </article>
+
+            {showMonthlyReport && <MonthlyReport metrics={monthlyMetrics} events={eventsSorted} horarios={horarios} onPrint={() => window.print()} />}
 
             <article className="panel floating-card">
               <h3>Comparación de cumpleaños por mes y año</h3>
@@ -1292,7 +1379,7 @@ alert('Valores guardados en Supabase ✅');
                       <label>Nombre<input value={userForm.nombre} onChange={(e) => setUserForm((prev) => ({ ...prev, nombre: e.target.value }))} /></label>
                       <label>Usuario<input value={userForm.usuario} onChange={(e) => setUserForm((prev) => ({ ...prev, usuario: e.target.value }))} /></label>
                       <label>Clave<input value={userForm.clave} onChange={(e) => setUserForm((prev) => ({ ...prev, clave: e.target.value }))} /></label>
-                      <label>Rol<select value={userForm.rol} onChange={(e) => setUserForm((prev) => ({ ...prev, rol: e.target.value as Rol }))}><option>Administrador principal</option><option>Coordinadora</option><option>Monitora</option></select></label>
+                      <label>Rol<select value={userForm.rol} onChange={(e) => setUserForm((prev) => ({ ...prev, rol: e.target.value as Rol }))}><option>Administrador principal</option><option>Coordinadora</option><option>Monitora</option><option>Supervisor</option></select></label>
                     </div>
                     <button className="primary-btn" onClick={saveUser}>{editingUserId ? 'Guardar cambios' : 'Crear usuario'}</button>
                   </>
@@ -1333,10 +1420,10 @@ alert('Valores guardados en Supabase ✅');
           </section>
         )}
 
-        {activeTab === 'valores' && activeUser.rol === 'Administrador principal' && (
+        {activeTab === 'configuracion' && activeUser.rol === 'Administrador principal' && (
           <section className="page fade-in">
             <article className="panel floating-card no-print">
-              <h3>Valores y descuentos</h3>
+              <h3>Configuración · Valores y descuentos</h3>
               {isAdmin ? (
                 <>
                   <div className="form-grid compact">
@@ -1376,6 +1463,36 @@ alert('Valores guardados en Supabase ✅');
                   </tbody>
                 </table>
               </div>
+            </article>
+
+            <article className="panel floating-card no-print">
+              <h3>Apariencia</h3>
+              <div className="form-grid compact">
+                <label>Color principal<input type="color" value={settingsDraft.colors.primary} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, colors: { ...prev.colors, primary: e.target.value } }))} /></label>
+                <label>Color secundario<input type="color" value={settingsDraft.colors.secondary} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, colors: { ...prev.colors, secondary: e.target.value } }))} /></label>
+                <label>Color de fondo<input type="color" value={settingsDraft.colors.background} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, colors: { ...prev.colors, background: e.target.value } }))} /></label>
+                <label>Color de texto<input type="color" value={settingsDraft.colors.text} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, colors: { ...prev.colors, text: e.target.value } }))} /></label>
+              </div>
+            </article>
+
+            <article className="panel floating-card no-print">
+              <div className="panel-title-row"><h3>Salas</h3><button className="ghost-btn" onClick={() => setSettingsDraft((prev) => ({ ...prev, salas: [...prev.salas, `Sala ${prev.salas.length + 1}`] }))}>+ Agregar sala</button></div>
+              <div className="settings-list">{settingsDraft.salas.map((sala, index) => <div className="settings-row" key={`${sala}-${index}`}><input value={sala} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, salas: prev.salas.map((item, i) => i === index ? e.target.value : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, salas: prev.salas.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
+            </article>
+
+            <article className="panel floating-card no-print">
+              <div className="panel-title-row"><h3>Horarios</h3><button className="ghost-btn" onClick={() => setSettingsDraft((prev) => ({ ...prev, horarios: [...prev.horarios, 'Nuevo horario'] }))}>+ Agregar horario</button></div>
+              <div className="settings-list">{settingsDraft.horarios.map((horario, index) => <div className="settings-row" key={`${horario}-${index}`}><input value={horario} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, horarios: prev.horarios.map((item, i) => i === index ? e.target.value : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, horarios: prev.horarios.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
+            </article>
+
+            <article className="panel floating-card no-print">
+              <div className="panel-title-row"><h3>Temáticas e inventario</h3><button className="ghost-btn" onClick={() => setSettingsDraft((prev) => ({ ...prev, tematicas: [...prev.tematicas, { nombre: 'Nueva temática', cantidad: 1 }] }))}>+ Agregar temática</button></div>
+              <div className="settings-list">{settingsDraft.tematicas.map((tema, index) => <div className="settings-row theme-row" key={`${tema.nombre}-${index}`}><input value={tema.nombre} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.map((item, i) => i === index ? { ...item, nombre: e.target.value } : item) }))} /><input type="number" min="0" value={tema.cantidad} onChange={(e) => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.map((item, i) => i === index ? { ...item, cantidad: Number(e.target.value) } : item) }))} /><button className="danger-btn small" onClick={() => setSettingsDraft((prev) => ({ ...prev, tematicas: prev.tematicas.filter((_, i) => i !== index) }))}>Eliminar</button></div>)}</div>
+            </article>
+
+            <article className="panel floating-card no-print settings-save-panel">
+              <div><h3>Guardar configuración general</h3><p className="muted">Los cambios no alteran reservas ni usuarios existentes.</p></div>
+              <button className="primary-btn" onClick={saveGeneralSettings}>Guardar configuración</button>
             </article>
           </section>
         )}
@@ -1469,15 +1586,44 @@ function SummaryEventCard({ event, onView }: { event: EventItem; onView: () => v
   );
 }
 
-function MetricCard({ title, value, sub, onExport }: { title: string; value: string; sub: string; onExport: () => void }) {
+function MetricCard({ title, value, sub, onExport }: { title: string; value: string; sub: string; onExport?: () => void }) {
   return (
     <div className="metric-card">
       <span>{title}</span>
       <strong>{value}</strong>
       <small>{sub}</small>
-      <button className="ghost-btn small no-print" onClick={onExport}>Exportar Excel</button>
+      {onExport && <button className="ghost-btn small no-print" onClick={onExport}>Exportar Excel</button>}
     </div>
   );
+}
+
+function MonthlyReport({ metrics, events, horarios, onPrint }: { metrics: ReturnType<typeof buildMetrics>; events: EventItem[]; horarios: string[]; onPrint: () => void }) {
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+  const avgOccupancy = Math.round(sum(horarios.map((slot) => metrics.occupancy[slot] ?? 0)) / Math.max(1, horarios.length));
+  const avgTicket = metrics.month.count ? Math.round(metrics.month.sales / metrics.month.count) : 0;
+  const bestSlot = [...horarios].sort((a, b) => (metrics.occupancy[b] ?? 0) - (metrics.occupancy[a] ?? 0))[0] ?? '-';
+  return <article className="panel floating-card monthly-report printable-sheet print-only-area">
+    <div className="monthly-report-header">
+      <div><span className="arial">Informe mensual ClubKids</span><h2>{monthLabel}</h2><p>Resumen ejecutivo para reunión de gerencia</p></div>
+      <button className="primary-btn no-print" onClick={onPrint}>Imprimir / Guardar PDF</button>
+    </div>
+    <div className="monthly-kpis">
+      <MetricCard title="Eventos del mes" value={`${metrics.month.count}`} sub="Cumpleaños registrados" />
+      <MetricCard title="Ventas del mes" value={formatCurrency(metrics.month.sales)} sub="Ingresos registrados" />
+      <MetricCard title="Por cobrar" value={formatCurrency(metrics.accountsReceivable)} sub="Saldo acumulado" />
+      <MetricCard title="Ocupación promedio" value={`${avgOccupancy}%`} sub="Promedio por horario" />
+    </div>
+    <div className="report-grid">
+      <section className="report-summary-card"><h3>Resumen ejecutivo</h3><p>Durante {monthLabel}, ClubKids registró <strong>{metrics.month.count} eventos</strong> por un total de <strong>{formatCurrency(metrics.month.sales)}</strong>. El horario con mayor ocupación fue <strong>{bestSlot}</strong>, el menú más vendido fue <strong>{metrics.topMenu}</strong> y el ingreso promedio por evento fue de <strong>{formatCurrency(avgTicket)}</strong>.</p></section>
+      <section className="report-summary-card"><h3>Ocupación por horario</h3>{horarios.map((slot) => <BarRow key={slot} label={slot} value={metrics.occupancy[slot] ?? 0} />)}</section>
+    </div>
+    <div className="report-grid">
+      <section className="report-summary-card"><h3>Fortalezas</h3><ul><li>Horario líder: {bestSlot}.</li><li>Menú líder: {metrics.topMenu}.</li><li>{metrics.month.count} eventos generaron {formatCurrency(metrics.month.sales)}.</li></ul></section>
+      <section className="report-summary-card"><h3>Alertas y acciones sugeridas</h3><ul><li>Dar seguimiento al saldo por cobrar de {formatCurrency(metrics.accountsReceivable)}.</li><li>Impulsar promociones en horarios con menor ocupación.</li><li>Revisar la participación de los menús con menor venta.</li></ul></section>
+    </div>
+    <p className="report-footnote">Informe generado automáticamente con los datos registrados en la agenda. Total de eventos históricos analizados: {events.length}.</p>
+  </article>;
 }
 
 function StatRow({ label, value }: { label: string; value: string }) {
@@ -1497,7 +1643,7 @@ function EmptyState({ text }: { text: string }) {
   return <div className="empty-state">{text}</div>;
 }
 
-function buildMetrics(events: EventItem[]) {
+function buildMetrics(events: EventItem[], horarios: string[], roomCount: number) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
@@ -1511,10 +1657,9 @@ function buildMetrics(events: EventItem[]) {
   });
   const yearEvents = events.filter((event) => event.fecha.startsWith(String(currentYear)));
 
-  const totalCapacity = 12 * Math.max(1, uniqueDates(events).length);
   const occupancy = Object.fromEntries(horarios.map((slot) => {
     const slotCount = events.filter((event) => event.horario === slot).length;
-    const maxForSlot = 4 * Math.max(1, uniqueDates(events).length);
+    const maxForSlot = Math.max(1, roomCount) * Math.max(1, uniqueDates(events).length);
     return [slot, pct(slotCount, maxForSlot)];
   })) as Record<string, number>;
 
@@ -1589,7 +1734,7 @@ function makeCalendarCell(date: Date, isCurrentMonth: boolean, events: EventItem
   };
 }
 
-function validateForm(form: FormState, events: EventItem[], editingEventId: string | null, valueHistory: MenuPriceVersion[], activeUser: User) {
+function validateForm(form: FormState, events: EventItem[], editingEventId: string | null, valueHistory: MenuPriceVersion[], activeUser: User, roomCount: number, themes: ThemeItem[]) {
 if (!form.nombreEvento.trim()) {
   return 'Debes ingresar el nombre del evento';
 }
@@ -1604,9 +1749,14 @@ if (!form.telefono.trim()) {
   const totals = calculateEventTotals(form, valueHistory);
   if (form.abono > totals.total) return 'El abono no puede superar el valor total del evento.';
   const sameSlotCount = events.filter((event) => event.fecha === form.fecha && event.horario === form.horario && event.id !== editingEventId).length;
-  if (sameSlotCount >= 5) return 'Ese horario ya completó sus 5 cupos.';
+  if (sameSlotCount >= roomCount) return `Ese horario ya completó sus ${roomCount} cupos.`;
   const sameRoom = events.find((event) => event.fecha === form.fecha && event.horario === form.horario && event.sala === form.sala && event.id !== editingEventId);
   if (sameRoom) return 'Ya existe un cumpleaños en la misma sala y horario.';
+  const theme = themes.find((item) => item.nombre === form.tematica);
+  if (theme) {
+    const themeUse = events.filter((event) => event.fecha === form.fecha && event.horario === form.horario && event.tematica === form.tematica && event.id !== editingEventId).length;
+    if (themeUse >= Math.max(1, theme.cantidad)) return 'La temática seleccionada ya no tiene unidades disponibles en ese horario.';
+  }
   if (form.discountType === 'especial' && activeUser.rol !== 'Administrador principal') return 'Solo el administrador principal puede aplicar descuento especial.';
   return '';
 }
@@ -1796,7 +1946,7 @@ function tabIcon(tab: TabId) {
     eventos: '🎈',
     reportes: '📊',
     usuarios: '👥',
-    valores: '💲',
+    configuracion: '⚙️',
   }[tab];
 }
 
